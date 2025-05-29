@@ -1,7 +1,5 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from handlers.market_data_handler import handle_market_data
-from handlers.calculation_handler import handle_calculation
 from handlers.command_handler import handle_start, handle_help
 from handlers.vwap_handler import handle_vwap  # Import the VWAP handler
 
