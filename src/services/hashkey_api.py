@@ -49,3 +49,28 @@ class HashkeyAPI:
             total_price_volume += price * volume
 
         return total_price_volume / total_volume if total_volume > 0 else 0
+    
+    def get_24hr_ticker_price_change(self, symbol: str) -> dict:
+        # Fetch the 24-hour rolling price change data for the given symbol.
+        endpoint = f"{self.base_url}/quote/v1/ticker/24hr"
+        params = {"symbol": symbol}
+        response = requests.get(endpoint, params=params)
+        response.raise_for_status()
+        
+        # Parse the JSON response
+        data = response.json()
+        
+        # Extract relevant data from the parsed response
+        price_change_data = {
+            "timestamp": int(data.get("t", 0)),
+            "symbol": data.get("s", ""),
+            "last_price": float(data.get("c", 0)),
+            "high_price": float(data.get("h", 0)),
+            "low_price": float(data.get("l", 0)),
+            "opening_price": float(data.get("o", 0)),
+            "bid_price": float(data.get("b", 0)),
+            "ask_price": float(data.get("a", 0)),
+            "base_volume": float(data.get("v", 0)),
+            "quote_volume": float(data.get("qv", 0))
+        }
+        return price_change_data
