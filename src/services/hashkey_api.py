@@ -50,9 +50,10 @@ class HashkeyAPI:
 
         return total_price_volume / total_volume if total_volume > 0 else 0
     
-    def get_24hr_ticker_price_change(self, symbol: str) -> dict:
+    @staticmethod
+    def get_24hr_ticker_price_change(symbol: str) -> dict:
         # Fetch the 24-hour rolling price change data for the given symbol.
-        endpoint = f"{self.base_url}/quote/v1/ticker/24hr"
+        endpoint = f"{HashkeyAPI.BASE_URL}/quote/v1/ticker/24hr"
         params = {"symbol": symbol}
         response = requests.get(endpoint, params=params)
         response.raise_for_status()
