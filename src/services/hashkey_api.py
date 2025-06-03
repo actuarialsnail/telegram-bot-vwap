@@ -61,6 +61,10 @@ class HashkeyAPI:
         # Parse the JSON response
         data = response.json()
         
+        # If the response is a list, extract the first element
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]  # Extract the first element
+        
         # Extract relevant data from the parsed response
         price_change_data = {
             "timestamp": int(data.get("t", 0)),
