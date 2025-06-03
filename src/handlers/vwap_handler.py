@@ -12,8 +12,9 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
         symbol = context.args[0] if context.args else "BTCUSD"
         logger.info(f"Fetching VWAP for symbol: {symbol}")
         vwap = HashkeyAPI.get_vwap(symbol)
-        logger.info(f"VWAP fetched: {vwap}")
-        await update.message.reply_text(f"The 24-hour VWAP for {symbol} is: {vwap}")
+        vwap_rounded = round(vwap, 2)  # Round VWAP to 2 decimal places
+        logger.info(f"VWAP fetched and rounded: {vwap_rounded}")
+        await update.message.reply_text(f"The 24-hour VWAP for {symbol} is: {vwap_rounded}")
     except Exception as e:
         logger.error(f"Error in handle_vwap: {str(e)}")
         await update.message.reply_text(f"Error fetching VWAP: {str(e)}")
