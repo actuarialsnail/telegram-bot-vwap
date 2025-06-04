@@ -5,17 +5,24 @@ from utils.logger import logger
 
 logger.info("Logger in vwap_handler.py is initialized")
 
+
 async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Received /vwap command")
 
     try:
         symbol = context.args[0] if context.args else "BTCUSD"
         logger.info(f"Fetching VWAP and market data for symbol: {symbol}")
-        
+
         # Fetch VWAP
-        vwap = HashkeyAPI.get_vwap(symbol)
-        vwap_rounded = round(vwap)  # Round VWAP to 2 decimal places
-        
+        vwap_24hr = HashkeyAPI.get_vwap(
+            symbol=symbol, interval="3m", limit=480)
+        vwap_rounded = round(vwap_24hr)
+
+        # Calculate VWAP for the last 7 days using 1-hour intervals
+        vwap_7d = HashkeyAPI.get_vwap(
+            symbol=symbol, interval="1h", limit=168)  # 168 hours = 7 days
+        vwap_7d_rounded = round(vwap_7d)
+
        # Fetch 24-hour ticker price change data
         price_change_data = HashkeyAPI.get_24hr_ticker_price_change(symbol)
         timestamp = price_change_data["timestamp"]
@@ -29,17 +36,20 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quote_volume = round(price_change_data["quote_volume"])
 
         # Calculate VWAP position within High and Low
-        vwap_within_range = ((vwap - low_price) / (high_price - low_price)) * 100 if high_price > low_price else 0
+        vwap_within_range = ((vwap_24hr - low_price) / (high_price -
+                             low_price)) * 100 if high_price > low_price else 0
         vwap_within_range_rounded = round(vwap_within_range, 2)
 
         # Calculate Last Price position within High and Low
-        last_price_within_range = ((last_price - low_price) / (high_price - low_price)) * 100 if high_price > low_price else 0
+        last_price_within_range = (
+            (last_price - low_price) / (high_price - low_price)) * 100 if high_price > low_price else 0
         last_price_within_range_rounded = round(last_price_within_range, 2)
 
         # Create a text-based progress bar
         bar_length = 20  # Length of the progress bar
         vwap_filled_length = int((vwap_within_range / 100) * bar_length)
-        last_price_filled_length = int((last_price_within_range / 100) * bar_length)
+        last_price_filled_length = int(
+            (last_price_within_range / 100) * bar_length)
 
         # Build the progress bar with markers for VWAP and Last Price
         progress_bar = ["-"] * bar_length
@@ -53,16 +63,18 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if vwap_filled_length < bar_length:
                 progress_bar[vwap_filled_length] = "V"  # Mark VWAP position
             if last_price_filled_length < bar_length:
-                progress_bar[last_price_filled_length] = "L"  # Mark Last Price position
+                # Mark Last Price position
+                progress_bar[last_price_filled_length] = "L"
         progress_bar = "".join(progress_bar)
-        
+
         logger.info(f"VWAP fetched and rounded: {vwap_rounded}")
-        logger.info(f"24-hour ticker price change data fetched: {price_change_data}")
-        
+        logger.info(
+            f"24-hour ticker price change data fetched: {price_change_data}")
+
         # Send response
         await update.message.reply_text(
-            f"The 24-hour prices for {symbol}:\n"
             f"<pre>"
+            f"The 24-hour prices for {symbol}:\n"
             f"{'VWAP':<10}: {vwap_rounded:>7,}\n"
             f"{'Last':<10}: {last_price:>7,}\n"
             f"{'High':<10}: {high_price:>7,}\n"
@@ -73,6 +85,8 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{'VWAP %':<10}: {vwap_within_range_rounded:>6,}%\n"
             f"{'Last %':<10}: {last_price_within_range_rounded:>6,}%\n"
             f"{'Position':<10}: [{progress_bar}]\n"
+            f"Other timeframes:\n"
+            f"{'VWAP 7d':<10}: {vwap_7d_rounded:>7,}\n"  # Add VWAP for 7 days
             f"</pre>",
             parse_mode="HTML"
         )

@@ -29,22 +29,36 @@ class HashkeyAPI:
             response.raise_for_status()
     
     @staticmethod
-    def get_vwap(symbol: str) -> float:
-        # Fetch historical trade data for the past 24 hours
-        endpoint = f"{HashkeyAPI.BASE_URL}/quote/v1/trades"
-        params = {"symbol": symbol, "limit": 100}  # Adjust limit as needed
+    def get_vwap(symbol: str, interval: str = "3m", limit: int = 480) -> float:
+        """
+        Calculate VWAP using Kline data for a given symbol, interval, and limit.
+        
+        Args:
+            symbol (str): The trading pair symbol (e.g., "ETHUSDT").
+            interval (str): The interval for Kline data (e.g., "1m", "5m", "1h").
+            limit (int): The number of Kline bars to fetch (max 1000).
+        
+        Returns:
+            float: The calculated VWAP value.
+        """
+        # Fetch Kline data using the specified interval and limit
+        endpoint = f"{HashkeyAPI.BASE_URL}/quote/v1/klines"
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
         response = requests.get(endpoint, params=params)
         response.raise_for_status()
-        trades = response.json()
-        logger.info("trades:", trades)
+        kline_data = response.json()
 
+        # Ensure Kline data is available
+        if not kline_data or len(kline_data) == 0:
+            logger.error("No Kline data available for VWAP calculation.")
+            return 0
 
-        # Calculate VWAP
+        # Calculate VWAP using Kline data
         total_volume = 0
         total_price_volume = 0
-        for trade in trades:
-            price = float(trade["p"])
-            volume = float(trade["q"])
+        for kline in kline_data:
+            price = float(kline[4])  # Close price
+            volume = float(kline[5])  # Base asset volume
             total_volume += volume
             total_price_volume += price * volume
 
