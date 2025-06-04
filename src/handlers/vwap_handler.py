@@ -20,8 +20,13 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
 
         # Calculate VWAP for the last 7 days using 1-hour intervals
         vwap_7d = HashkeyAPI.get_vwap(
-            symbol=symbol, interval="1h", limit=168)  # 168 hours = 7 days
+            symbol=symbol, interval="15m", limit=672)  # 4* 168 hours = 7 days
         vwap_7d_rounded = round(vwap_7d)
+
+        # Calculate VWAP for the last 30 days using 1-hour intervals
+        vwap_30d = HashkeyAPI.get_vwap(
+            symbol=symbol, interval="1h", limit=720)  # 720 hours = 30 days
+        vwap_30d_rounded = round(vwap_30d)
 
        # Fetch 24-hour ticker price change data
         price_change_data = HashkeyAPI.get_24hr_ticker_price_change(symbol)
@@ -87,6 +92,7 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
             f"{'Position':<10}: [{progress_bar}]\n"
             f"Other timeframes:\n"
             f"{'VWAP 7d':<10}: {vwap_7d_rounded:>7,}\n"  # Add VWAP for 7 days
+            f"{'VWAP 30d':<10}: {vwap_30d_rounded:>7,}\n"  # Add VWAP for 30 days
             f"</pre>",
             parse_mode="HTML"
         )
