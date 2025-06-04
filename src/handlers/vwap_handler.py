@@ -6,7 +6,7 @@ from utils.logger import logger
 logger.info("Logger in vwap_handler.py is initialized")
 
 
-async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Received /vwap command")
 
     try:
@@ -72,7 +72,7 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"24-hour ticker price change data fetched: {price_change_data}")
 
         # Send response
-        await update.message.reply_text(
+        await message.reply_text(
             f"<pre>"
             f"The 24-hour prices for {symbol}:\n"
             f"{'VWAP':<10}: {vwap_rounded:>7,}\n"
@@ -92,4 +92,4 @@ async def handle_vwap(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Error in handle_vwap: {str(e)}")
-        await update.message.reply_text(f"Error fetching VWAP or market data: {str(e)}")
+        await message.reply_text(f"Error fetching VWAP or market data: {str(e)}")
