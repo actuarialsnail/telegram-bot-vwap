@@ -50,17 +50,21 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
             (last_price - low_price) / (high_price - low_price)) * 100 if high_price > low_price else 0
         last_price_within_range_rounded = round(last_price_within_range, 2)
 
-        # Create a text-based progress bar
-        bar_length = 20  # Length of the progress bar
-        vwap_filled_length = int((vwap_within_range / 100) * bar_length)
-        last_price_filled_length = int(
-            (last_price_within_range / 100) * bar_length)
+        # Ensure bar_length is valid
+        bar_length = max(1, 20)  # Length of the progress bar
 
-        # Build the progress bar with markers for VWAP and Last Price
+        # Calculate VWAP and Last Price positions
+        vwap_filled_length = max(0, min(int((vwap_within_range / 100) * bar_length), bar_length - 1))
+        last_price_filled_length = max(0, min(int((last_price_within_range / 100) * bar_length), bar_length - 1))
+
+        # Initialize progress bar
         progress_bar = ["-"] * bar_length
-        if vwap_filled_length == last_price_filled_length:  # Handle overlap
-            # Determine whether to use "VL" or "LV" based on which is larger
-            if vwap_within_range > last_price_within_range:
+
+        # Handle overlap
+        if vwap_filled_length == last_price_filled_length:
+            if vwap_within_range == last_price_within_range:
+                progress_bar[vwap_filled_length] = "VL"  # Equal position
+            elif vwap_within_range > last_price_within_range:
                 progress_bar[vwap_filled_length] = "LV"  # VWAP is larger
             else:
                 progress_bar[vwap_filled_length] = "VL"  # Last Price is larger
@@ -68,8 +72,8 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
             if vwap_filled_length < bar_length:
                 progress_bar[vwap_filled_length] = "V"  # Mark VWAP position
             if last_price_filled_length < bar_length:
-                # Mark Last Price position
-                progress_bar[last_price_filled_length] = "L"
+                progress_bar[last_price_filled_length] = "L"  # Mark Last Price position
+
         progress_bar = "".join(progress_bar)
 
         logger.info(f"VWAP fetched and rounded: {vwap_rounded}")
