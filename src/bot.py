@@ -123,6 +123,13 @@ def monitor_websocket(application):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
+    # Start the event loop in a separate thread
+    def start_event_loop():
+        logger.info("Starting event loop...")
+        loop.run_forever()
+
+    threading.Thread(target=start_event_loop, daemon=True).start()
+
     while True:  # Infinite loop for monitoring WebSocket data
         try:
             # Fetch data from the WebSocket
@@ -132,24 +139,21 @@ def monitor_websocket(application):
             # Send notifications to all subscribed users
             for chat_id in application.bot_data.get('subscribed_chat_ids', []):
                 logger.info(f"Sending message to chat_id {chat_id}: {data}")
-                # loop.run_in_executor(
-                #     None, partial(application.bot.send_message, chat_id=chat_id, text=f"hello")
-                # )
 
+                # Define the coroutine to send the message
                 async def test():
-
                     if application.bot is None:
                         logger.error("Bot instance is not initialized!")
-                    else:
-                        logger.info(
-                            f"Bot instance is initialized: {application.bot.send_message}")
+                        return
+                    try:
+                        await application.bot.send_message(chat_id=chat_id, text=f"{data}")
+                        logger.info(f"Message sent to chat_id {chat_id}")
+                    except Exception as send_error:
+                        logger.error(f"Failed to send message to chat_id {chat_id}: {send_error}")
 
-                    await application.bot.send_message(
-                        chat_id=2053201425, text=f"HELLO")
+                # Run the coroutine in the event loop
+                asyncio.run_coroutine_threadsafe(test(), loop)
 
-                asyncio.run_coroutine_threadsafe(
-                    test(), loop
-                )
             time.sleep(10)  # Adjust the polling interval as needed
         except Exception as e:
             logger.error(f"Error in WebSocket monitoring: {e}")
