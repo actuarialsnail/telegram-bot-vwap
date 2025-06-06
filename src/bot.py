@@ -121,7 +121,7 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def monitor_websocket(application):
     # Create and set an event loop for the current thread
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    # asyncio.set_event_loop(loop)
 
     # Start the event loop in a separate thread
     def start_event_loop():
@@ -134,11 +134,11 @@ def monitor_websocket(application):
         try:
             # Fetch data from the WebSocket
             data = websocket_client.get_bbo_data()  # Access shared websocket_client object
-            logger.info(f"Received data from WebSocket: {data}")
+            # logger.info(f"Received data from WebSocket: {data}")
 
             # Send notifications to all subscribed users
             for chat_id in application.bot_data.get('subscribed_chat_ids', []):
-                logger.info(f"Sending message to chat_id {chat_id}: {data}")
+                # logger.info(f"Sending message to chat_id {chat_id}: {data}")
 
                 # Define the coroutine to send the message
                 async def test():
