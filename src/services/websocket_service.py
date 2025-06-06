@@ -90,19 +90,29 @@ class WebSocketClient:
             self._ws.send(json.dumps(unsub))
 
     def connect(self):
-        base_url = 'wss://stream-pro.hashkey.com'
-        endpoint = 'quote/ws/v2'
-        stream_url = f"{base_url}/{endpoint}"
-        self._logger.info(stream_url)
-        self._logger.info(f"Connecting to {stream_url}")
+        try:
+            base_url = 'wss://stream-pro.hashkey.com'
+            endpoint = 'quote/ws/v2'
+            stream_url = f"{base_url}/{endpoint}"
+            self._logger.info(stream_url)
+            self._logger.info(f"Connecting to {stream_url}")
 
-        self._ws = websocket.WebSocketApp(stream_url,
-                                          on_message=self._on_message,
-                                          on_error=self._on_error,
-                                          on_close=self._on_close)
-        self._ws.on_open = self._on_open
+            self._ws = websocket.WebSocketApp(stream_url,
+                                            on_message=self._on_message,
+                                            on_error=self._on_error,
+                                            on_close=self._on_close)
+            self._ws.on_open = self._on_open
+            self._logger.info("WebSocket connection running...")
+            self._ws.run_forever()
+        except Exception as e:
+            self._logger.error(f"WebSocket connection failed: {e}")
 
-        self._ws.run_forever()
+    def disconnect(self):
+        """Gracefully disconnect the WebSocket connection."""
+        if self._ws:
+            self._logger.info("Closing WebSocket connection...")
+            self._ws.close()  # Close the WebSocket connection
+            self._ws = None
 
 # if __name__ == '__main__':
 #     logging.basicConfig(level=logging.INFO)
