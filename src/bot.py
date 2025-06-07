@@ -134,14 +134,17 @@ def monitor_websocket(application):
         try:
             # Fetch data from the WebSocket
             data = websocket_client.get_bbo_data()  # Access shared websocket_client object
-            # logger.info(f"Received data from WebSocket: {data}")
+
+            # Check if data is empty
+            if not data:
+                logger.warning("Received empty data from WebSocket.")
+                time.sleep(10)  # Adjust the polling interval as needed
+                continue
 
             # Send notifications to all subscribed users
             for chat_id in application.bot_data.get('subscribed_chat_ids', []):
-                # logger.info(f"Sending message to chat_id {chat_id}: {data}")
-
                 # Define the coroutine to send the message
-                async def test():
+                async def send_message_to_chat():
                     if application.bot is None:
                         logger.error("Bot instance is not initialized!")
                         return
@@ -152,7 +155,7 @@ def monitor_websocket(application):
                         logger.error(f"Failed to send message to chat_id {chat_id}: {send_error}")
 
                 # Run the coroutine in the event loop
-                asyncio.run_coroutine_threadsafe(test(), loop)
+                asyncio.run_coroutine_threadsafe(send_message_to_chat(), loop)
 
             time.sleep(10)  # Adjust the polling interval as needed
         except Exception as e:
@@ -203,7 +206,6 @@ def main():
     finally:
         logger.info("Cleaning up resources...")
         websocket_client.disconnect()  # Ensure WebSocket is terminated
-        save_bot_data(application.bot_data)  # Save bot_data before exiting
         logger.info("Bot stopped.")
 
 
