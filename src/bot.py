@@ -9,6 +9,7 @@ import threading
 import time
 import asyncio
 from functools import partial
+import os
 
 # Initialize the WebSocket client
 websocket_client = WebSocketClient()
@@ -16,20 +17,22 @@ application = None
 
 
 def save_bot_data(application):
-    """Save bot_data to a local JSON file."""
-    with open('bot_data.json', 'w') as f:
+    """Save bot_data to a local JSON file in the config folder."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
+    with open(config_path, 'w') as f:
         # Access bot_data attribute of application
         json.dump(application.bot_data, f)
-    logger.info("Bot data saved to bot_data.json.")
+    logger.info("Bot data saved to ../config/bot_data.json.")
 
 
 def load_bot_data(application):
-    """Load bot_data from a local JSON file."""
+    """Load bot_data from a local JSON file in the config folder."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
     try:
-        with open('bot_data.json', 'r') as f:
+        with open(config_path, 'r') as f:
             # Access bot_data attribute of application
             application.bot_data = json.load(f)
-        logger.info("Bot data loaded from bot_data.json.")
+        logger.info("Bot data loaded from ../config/bot_data.json.")
     except FileNotFoundError:
         # Initialize with an empty dictionary if the file doesn't exist
         application.bot_data = {}
@@ -37,8 +40,7 @@ def load_bot_data(application):
     except json.JSONDecodeError:
         # Initialize with an empty dictionary if the file is corrupted
         application.bot_data = {}
-        logger.error(
-            "Bot data file is corrupted. Starting with empty bot_data.")
+        logger.error("Bot data file is corrupted. Starting with empty bot_data.")
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -178,7 +180,10 @@ def connect_websocket(application):
 
 
 def main():
-    with open('../config/config.json', 'r') as config_file:
+    # Get the absolute path to the config file relative to this script
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/config.json')
+
+    with open(config_path, 'r') as config_file:
         config = json.load(config_file)
 
     bot_token = config['DEFAULT']['telegram_bot_token']
