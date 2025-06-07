@@ -11,4 +11,4 @@ config/config.json
 # Ignore logs
 *.log
 
-src/*.json
+*.json
