@@ -18,7 +18,8 @@ application = None
 
 def save_bot_data(application):
     """Save bot_data to a local JSON file in the config folder."""
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
+    config_path = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), '../config/bot_data.json')
     with open(config_path, 'w') as f:
         # Access bot_data attribute of application
         json.dump(application.bot_data, f)
@@ -27,7 +28,8 @@ def save_bot_data(application):
 
 def load_bot_data(application):
     """Load bot_data from a local JSON file in the config folder."""
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
+    config_path = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), '../config/bot_data.json')
     try:
         with open(config_path, 'r') as f:
             # Access bot_data attribute of application
@@ -40,7 +42,8 @@ def load_bot_data(application):
     except json.JSONDecodeError:
         # Initialize with an empty dictionary if the file is corrupted
         application.bot_data = {}
-        logger.error("Bot data file is corrupted. Starting with empty bot_data.")
+        logger.error(
+            "Bot data file is corrupted. Starting with empty bot_data.")
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -121,16 +124,19 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def monitor_websocket(application):
-    # Create and set an event loop for the current thread
-    loop = asyncio.new_event_loop()
-    # asyncio.set_event_loop(loop)
-
     # Start the event loop in a separate thread
     def start_event_loop():
+        # Create and set an event loop for the current thread
+        global loop
+        loop = asyncio.new_event_loop()
+        # Associate the loop with the current thread
+        # asyncio.set_event_loop(loop)
         logger.info("Starting event loop...")
         loop.run_forever()
 
-    threading.Thread(target=start_event_loop, daemon=True).start()
+    # Start the event loop thread
+    loop_thread = threading.Thread(target=start_event_loop, daemon=True)
+    loop_thread.start()
 
     while True:  # Infinite loop for monitoring WebSocket data
         try:
@@ -154,7 +160,8 @@ def monitor_websocket(application):
                         await application.bot.send_message(chat_id=chat_id, text=f"{data}")
                         logger.info(f"Message sent to chat_id {chat_id}")
                     except Exception as send_error:
-                        logger.error(f"Failed to send message to chat_id {chat_id}: {send_error}")
+                        logger.error(
+                            f"Failed to send message to chat_id {chat_id}: {send_error}")
 
                 # Run the coroutine in the event loop
                 asyncio.run_coroutine_threadsafe(send_message_to_chat(), loop)
@@ -181,7 +188,8 @@ def connect_websocket(application):
 
 def main():
     # Get the absolute path to the config file relative to this script
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/config.json')
+    config_path = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), '../config/config.json')
 
     with open(config_path, 'r') as config_file:
         config = json.load(config_file)
