@@ -58,10 +58,11 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_vwap_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle the /vwap command and display options for BTCUSD and ETHUSD."""
+    """Handle the /vwap command and display options for BTCUSD, ETHUSD and ALL pairs."""
     buttons = [
         [InlineKeyboardButton("BTCUSD", callback_data="vwap_BTCUSD")],
-        [InlineKeyboardButton("ETHUSD", callback_data="vwap_ETHUSD")]
+        [InlineKeyboardButton("ETHUSD", callback_data="vwap_ETHUSD")],
+        [InlineKeyboardButton("ALL", callback_data="vwap_ALL")]  # new button for all pairs
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
@@ -71,19 +72,23 @@ async def show_vwap_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_vwap_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle the user's selection of BTCUSD or ETHUSD."""
+    """Handle the user's selection of BTCUSD, ETHUSD or ALL."""
     query = update.callback_query
     await query.answer()  # Acknowledge the callback query
 
-    pair = query.data.split("_")[1]  # Extract the pair from callback data
-    await query.edit_message_text(f"Calculating VWAP for {pair}...")
+    pair = query.data.split("_", 1)[1]  # Extract the pair from callback data
 
-    # Set the pair as an argument for handle_vwap
-    context.args = [pair]
-
-    # Call the VWAP handler directly with query.message
-    # Pass query.message to handle_vwap
-    await handle_vwap(query.message, context)
+    if pair == "ALL":
+        # trigger VWAP for both pairs
+        pairs = ["BTCUSD", "ETHUSD"]
+        await query.edit_message_text("Calculating VWAP for all pairs...")
+        for p in pairs:
+            context.args = [p]
+            await handle_vwap(query.message, context)
+    else:
+        await query.edit_message_text(f"Calculating VWAP for {pair}...")
+        context.args = [pair]
+        await handle_vwap(query.message, context)
 
 
 async def handle_bbo(update: Update, context: ContextTypes.DEFAULT_TYPE):
