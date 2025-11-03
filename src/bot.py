@@ -14,34 +14,61 @@ websocket_client = WebSocketClient()
 application = None
 
 
-def save_bot_data(application):
-    """Save bot_data to a local JSON file in the config folder."""
+def save_bot_data(ctx_or_app):
+    """Save only JSON-serializable parts of bot_data to config/bot_data.json."""
+    # ctx_or_app can be either Application or Context
+    bot_data = getattr(ctx_or_app, "bot_data", None)
+    if not isinstance(bot_data, dict):
+        logger.error("save_bot_data: no bot_data found to save.")
+        return
+
     config_path = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), '../config/bot_data.json')
-    with open(config_path, 'w') as f:
-        # Access bot_data attribute of application
-        json.dump(application.bot_data, f)
-    logger.info("Bot data saved to ../config/bot_data.json.")
+
+    # Keep only values that json can serialize (skip Futures/tasks and other complex objects)
+    serializable = {}
+    for k, v in bot_data.items():
+        try:
+            # try serializing the value; if it fails, skip the key
+            json.dumps(v)
+            serializable[k] = v
+        except (TypeError, OverflowError):
+            logger.warning(f"Skipping non-serializable bot_data key: {k}")
+
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(serializable, f, indent=2)
+        logger.info("Bot data saved to ../config/bot_data.json.")
+    except Exception as e:
+        logger.error(f"Failed to save bot_data: {e}")
 
 
 def load_bot_data(application):
-    """Load bot_data from a local JSON file in the config folder."""
+    """Load bot_data from config/bot_data.json and merge into application.bot_data."""
     config_path = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), '../config/bot_data.json')
     try:
         with open(config_path, 'r') as f:
-            # Access bot_data attribute of application
-            application.bot_data = json.load(f)
+            data = json.load(f)
+        if not isinstance(data, dict):
+            logger.warning("Loaded bot_data is not a dict; ignoring.")
+            application.bot_data = {}
+            return
+        # Ensure application.bot_data exists and merge loaded primitive data in
+        if getattr(application, "bot_data", None) is None:
+            application.bot_data = {}
+        # Merge in loaded keys (will overwrite existing primitive keys)
+        application.bot_data.update(data)
         logger.info("Bot data loaded from ../config/bot_data.json.")
     except FileNotFoundError:
-        # Initialize with an empty dictionary if the file doesn't exist
         application.bot_data = {}
         logger.info("Bot data file not found. Starting with empty bot_data.")
     except json.JSONDecodeError:
-        # Initialize with an empty dictionary if the file is corrupted
         application.bot_data = {}
-        logger.error(
-            "Bot data file is corrupted. Starting with empty bot_data.")
+        logger.error("Bot data file is corrupted. Starting with empty bot_data.")
+    except Exception as e:
+        application.bot_data = {}
+        logger.error(f"Failed to load bot_data: {e}")
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
