@@ -65,6 +65,43 @@ class HashkeyAPI:
         return total_price_volume / total_volume if total_volume > 0 else 0
     
     @staticmethod
+    def get_twap(symbol: str, interval: str = "3m", limit: int = 480) -> float:
+        """
+        Calculate TWAP using Kline data for a given symbol, interval, and limit.
+        TWAP here is computed as the time-weighted average of close prices across
+        the fetched klines (with uniform bars this is the simple average of closes).
+        
+        Args:
+            symbol (str): The trading pair symbol (e.g., "ETHUSDT").
+            interval (str): The interval for Kline data (e.g., "1m", "5m", "1h").
+            limit (int): The number of Kline bars to fetch (max 1000).
+        
+        Returns:
+            float: The calculated TWAP value.
+        """
+        endpoint = f"{HashkeyAPI.BASE_URL}/quote/v1/klines"
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
+        response = requests.get(endpoint, params=params)
+        response.raise_for_status()
+        kline_data = response.json()
+
+        if not kline_data or len(kline_data) == 0:
+            logger.error("No Kline data available for TWAP calculation.")
+            return 0
+
+        total_price = 0.0
+        count = 0
+        for kline in kline_data:
+            try:
+                price = float(kline[4])  # Close price
+            except (IndexError, TypeError, ValueError):
+                continue
+            total_price += price
+            count += 1
+
+        return total_price / count if count > 0 else 0
+
+    @staticmethod
     def get_24hr_ticker_price_change(symbol: str) -> dict:
         # Fetch the 24-hour rolling price change data for the given symbol.
         endpoint = f"{HashkeyAPI.BASE_URL}/quote/v1/ticker/24hr"

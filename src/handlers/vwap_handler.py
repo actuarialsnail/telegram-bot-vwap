@@ -20,13 +20,23 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
 
         # Calculate VWAP for the last 7 days using 1-hour intervals
         vwap_7d = HashkeyAPI.get_vwap(
-            symbol=symbol, interval="15m", limit=672)  # 4* 168 hours = 7 days
+            symbol=symbol, interval="15m", limit=672)  # 15m * 672 = 7 days
         vwap_7d_rounded = round(vwap_7d)
+
+        # Calculate TWAP for the last 7 days using 15-minute intervals
+        twap_7d = HashkeyAPI.get_twap(
+            symbol=symbol, interval="15m", limit=672)
+        twap_7d_rounded = round(twap_7d)
 
         # Calculate VWAP for the last 30 days using 1-hour intervals
         vwap_30d = HashkeyAPI.get_vwap(
-            symbol=symbol, interval="1h", limit=720)  # 720 hours = 30 days
+            symbol=symbol, interval="1h", limit=720)  # 1h * 720 = 30 days
         vwap_30d_rounded = round(vwap_30d)
+
+        # Calculate TWAP for the last 30 days using 1-hour intervals
+        twap_30d = HashkeyAPI.get_twap(
+            symbol=symbol, interval="1h", limit=720)
+        twap_30d_rounded = round(twap_30d)
 
        # Fetch 24-hour ticker price change data
         price_change_data = HashkeyAPI.get_24hr_ticker_price_change(symbol)
@@ -95,8 +105,10 @@ async def handle_vwap(message, context: ContextTypes.DEFAULT_TYPE):
             f"{'Last %':<10}: {last_price_within_range_rounded:>6,}%\n"
             f"{'Position':<10}: [{progress_bar}]\n"
             f"Other timeframes:\n"
-            f"{'VWAP 7d':<10}: {vwap_7d_rounded:>7,}\n"  # Add VWAP for 7 days
-            f"{'VWAP 30d':<10}: {vwap_30d_rounded:>7,}\n"  # Add VWAP for 30 days
+            f"{'VWAP 7d':<10}: {vwap_7d_rounded:>7,}\n"
+            f"{'TWAP 7d':<10}: {twap_7d_rounded:>7,} ({(((twap_7d - vwap_7d) / vwap_7d) * 100) if vwap_7d else 0:+.1f}%)\n"
+            f"{'VWAP 30d':<10}: {vwap_30d_rounded:>7,}\n"
+            f"{'TWAP 30d':<10}: {twap_30d_rounded:>7,} ({(((twap_30d - vwap_30d) / vwap_30d) * 100) if vwap_30d else 0:+.1f}%)\n"
             f"</pre>",
             parse_mode="HTML"
         )
