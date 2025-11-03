@@ -15,60 +15,31 @@ application = None
 
 
 def save_bot_data(ctx_or_app):
-    """Save only JSON-serializable parts of bot_data to config/bot_data.json."""
+    """Persist only whitelisted, JSON-serializable bot_data keys."""
     bot_data = getattr(ctx_or_app, "bot_data", None)
     if not isinstance(bot_data, dict):
         logger.error("save_bot_data: no bot_data found to save.")
         return
 
-    config_path = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), '../config/bot_data.json')
+    # Whitelist keys that should be persisted
+    allowed_keys = ("subscribed_chat_ids",)  # add other plain-data keys here if needed
+    to_save = {k: bot_data[k] for k in allowed_keys if k in bot_data}
 
-    # Keep only values that json can serialize (skip Futures/tasks and other complex objects)
-    serializable = {}
-    for k, v in bot_data.items():
-        # explicitly skip runtime-only keys
-        if k == "ws_tasks":
-            logger.debug("Skipping runtime-only bot_data key: ws_tasks")
-            continue
-        try:
-            json.dumps(v)
-            serializable[k] = v
-        except (TypeError, OverflowError):
-            logger.warning(f"Skipping non-serializable bot_data key: {k}")
-
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
     try:
         with open(config_path, 'w') as f:
-            json.dump(serializable, f, indent=2)
-        logger.info(        # ...existing code...
-        async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            """Handle the /start command and send a keyboard with buttons."""
-            buttons = [
-                ['/help', '/vwap'],
-                ['/subscribe', '/unsubscribe']
-            ]
-            reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-            await update.message.reply_text(
-                "Welcome! Choose a command using the buttons below:",
-                reply_markup=reply_markup
-            )
-            # await context.application.bot.send_message(chat_id=2053201425, text="Test message")
-        #"Bot data saved to ../config/bot_data.json.")
+            json.dump(to_save, f, indent=2)
+        logger.info("Bot data saved to ../config/bot_data.json.")
     except Exception as e:
         logger.error(f"Failed to save bot_data: {e}")
 
 
 def load_bot_data(application):
-    """Load bot_data from config/bot_data.json and merge into application.bot_data."""
-    config_path = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), '../config/bot_data.json')
+    """Load only whitelisted keys from bot_data.json into application.bot_data."""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../config/bot_data.json')
     try:
         with open(config_path, 'r') as f:
             data = json.load(f)
-
-        # drop any runtime-only keys that should not be persisted
-        if isinstance(data, dict):
-            data.pop("ws_tasks", None)
 
         if not isinstance(data, dict):
             logger.warning("Loaded bot_data is not a dict; ignoring.")
@@ -78,7 +49,11 @@ def load_bot_data(application):
         if getattr(application, "bot_data", None) is None:
             application.bot_data = {}
 
-        application.bot_data.update(data)
+        # Merge only whitelisted keys
+        for k in ("subscribed_chat_ids",):
+            if k in data:
+                application.bot_data[k] = data[k]
+
         logger.info("Bot data loaded from ../config/bot_data.json.")
     except FileNotFoundError:
         application.bot_data = {}
