@@ -5,11 +5,9 @@ from handlers.vwap_handler import handle_vwap
 from utils.logger import logger
 from services.websocket_service import WebSocketClient
 import json
-import threading
-import time
 import asyncio
-from functools import partial
 import os
+import inspect
 
 # Initialize the WebSocket client
 websocket_client = WebSocketClient()
@@ -94,8 +92,13 @@ async def handle_vwap_selection(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_bbo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /latest command to fetch the latest data from the WebSocket."""
     try:
-        bbo_data = websocket_client.get_bbo_data()  # Fetch the latest data
-        await update.message.reply_text(f"Latest data: {bbo_data}")
+        # get_bbo_data is blocking; run in thread to avoid blocking handler
+        if hasattr(asyncio, "to_thread"):
+            data = await asyncio.to_thread(websocket_client.get_bbo_data)
+        else:
+            loop = asyncio.get_running_loop()
+            data = await loop.run_in_executor(None, websocket_client.get_bbo_data)
+        await update.message.reply_text(f"Latest data: {data}")
     except Exception as e:
         logger.error(f"Error fetching latest data: {e}")
         await update.message.reply_text("Failed to fetch the BBO data. Please try again later.")
@@ -128,67 +131,116 @@ async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You are not subscribed to notifications.")
 
 
-def monitor_websocket(application):
-    # Start the event loop in a separate thread
-    def start_event_loop():
-        # Create and set an event loop for the current thread
-        global loop
-        loop = asyncio.new_event_loop()
-        # Associate the loop with the current thread
-        # asyncio.set_event_loop(loop)
-        logger.info("Starting event loop...")
-        loop.run_forever()
+# --- Replaced blocking/threaded monitor/connect with async-safe background tasks ---
+async def monitor_websocket_async(application):
+    """Run inside the application's event loop. Use to_thread or run_in_executor for blocking calls."""
+    loop = asyncio.get_running_loop()
+    try:
+        while True:
+            try:
+                if hasattr(asyncio, "to_thread"):
+                    data = await asyncio.to_thread(websocket_client.get_bbo_data)
+                else:
+                    data = await loop.run_in_executor(None, websocket_client.get_bbo_data)
 
-    # Start the event loop thread
-    loop_thread = threading.Thread(target=start_event_loop, daemon=True)
-    loop_thread.start()
+                if not data:
+                    logger.warning("Received empty data from WebSocket.")
+                    await asyncio.sleep(10)
+                    continue
 
-    while True:  # Infinite loop for monitoring WebSocket data
-        try:
-            # Fetch data from the WebSocket
-            data = websocket_client.get_bbo_data()  # Access shared websocket_client object
-
-            # Check if data is empty
-            if not data:
-                logger.warning("Received empty data from WebSocket.")
-                time.sleep(10)  # Adjust the polling interval as needed
-                continue
-
-            # Send notifications to all subscribed users
-            for chat_id in application.bot_data.get('subscribed_chat_ids', []):
-                # Define the coroutine to send the message
-                async def send_message_to_chat():
+                for chat_id in application.bot_data.get('subscribed_chat_ids', []):
                     if application.bot is None:
                         logger.error("Bot instance is not initialized!")
-                        return
+                        continue
                     try:
                         await application.bot.send_message(chat_id=chat_id, text=f"{data}")
                         logger.info(f"Message sent to chat_id {chat_id}")
                     except Exception as send_error:
-                        logger.error(
-                            f"Failed to send message to chat_id {chat_id}: {send_error}")
+                        logger.error(f"Failed to send message to chat_id {chat_id}: {send_error}")
 
-                # Run the coroutine in the event loop
-                asyncio.run_coroutine_threadsafe(send_message_to_chat(), loop)
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in WebSocket monitoring loop: {e}")
+                await asyncio.sleep(5)
+    finally:
+        logger.info("monitor_websocket_async stopped.")
 
-            time.sleep(10)  # Adjust the polling interval as needed
+
+async def start_websocket_background(application):
+    """Run inside post_init: schedule connect and monitor using asyncio.create_task.
+    Handles both coroutine and blocking connect() implementations and prevents
+    exceptions from escaping post_init.
+    """
+    application.bot_data.setdefault("ws_tasks", [])
+    loop = asyncio.get_running_loop()
+
+    try:
+        # Helper to run blocking connect safely and log exceptions
+        def _blocking_connect():
+            try:
+                websocket_client.connect()
+            except Exception as e:
+                logger.error(f"WebSocket connect failed (blocking): {e}")
+
+        # Helper to run coroutine connect safely and log exceptions
+        async def _coro_connect_wrapper():
+            try:
+                await websocket_client.connect()
+            except Exception as e:
+                logger.error(f"WebSocket connect failed (coroutine): {e}")
+
+        # Create connect task depending on whether connect is async or blocking
+        if inspect.iscoroutinefunction(getattr(websocket_client, "connect", None)):
+            connect_task = asyncio.create_task(_coro_connect_wrapper(), name="ws_connect_coro")
+        else:
+            if hasattr(asyncio, "to_thread"):
+                connect_task = asyncio.create_task(asyncio.to_thread(_blocking_connect), name="ws_connect_thread")
+            else:
+                # run_in_executor returns a Future; ensure_future accepts it
+                connect_future = loop.run_in_executor(None, _blocking_connect)
+                connect_task = asyncio.ensure_future(connect_future, loop=loop)
+
+        # Start monitor (always a coroutine)
+        monitor_task = asyncio.create_task(monitor_websocket_async(application), name="ws_monitor")
+
+        # Save tasks for shutdown cancellation/await
+        application.bot_data["ws_tasks"].extend([connect_task, monitor_task])
+
+    except Exception as e:
+        # Log and do not re-raise — post_init must not raise otherwise run_until_complete fails
+        logger.error(f"Failed to start websocket background tasks: {e}")
+
+
+async def stop_websocket_background(application):
+    """Cancel and await websocket tasks and ensure websocket disconnected."""
+    tasks = application.bot_data.get("ws_tasks", [])
+    # cancel tasks
+    for t in tasks:
+        try:
+            t.cancel()
+        except Exception:
+            pass
+
+    # await tasks completion
+    for t in tasks:
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
-            logger.error(f"Error in WebSocket monitoring: {e}")
-            break
+            logger.debug(f"ws task error during shutdown: {e}")
 
-
-def connect_websocket(application):
-    logger.info("Background websocket is starting...")
-    # Start the WebSocket connection in a separate thread
-    connect_thread = threading.Thread(target=websocket_client.connect)
-    connect_thread.daemon = True  # Make the thread a daemon
-    connect_thread.start()
-
-    # Pass the application object to monitor_websocket
-    monitor_thread = threading.Thread(
-        target=monitor_websocket, args=(application,))
-    monitor_thread.daemon = True  # Make the thread a daemon
-    monitor_thread.start()
+    # ensure websocket is disconnected (run blocking disconnect in thread)
+    try:
+        if hasattr(asyncio, "to_thread"):
+            await asyncio.to_thread(websocket_client.disconnect)
+        else:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, websocket_client.disconnect)
+    except Exception as e:
+        logger.error(f"Error while disconnecting websocket_client: {e}")
 
 
 def main():
@@ -200,7 +252,14 @@ def main():
         config = json.load(config_file)
 
     bot_token = config['DEFAULT']['telegram_bot_token']
-    application = Application.builder().token(bot_token).build()
+    # register both start and shutdown hooks so background tasks are created and cleaned up correctly
+    application = (
+        Application.builder()
+        .token(bot_token)
+        .post_init(start_websocket_background)
+        .post_shutdown(stop_websocket_background)
+        .build()
+    )
 
     # Load bot_data from file
     load_bot_data(application)
@@ -217,13 +276,16 @@ def main():
 
     logger.info("Bot is starting...")
     try:
-        connect_websocket(application)  # Start the WebSocket connection
+        # run_polling starts the application's event loop and will execute post_init callbacks
         application.run_polling()  # Start polling for Telegram updates
     except KeyboardInterrupt:
         logger.info("Bot is shutting down...")
     finally:
         logger.info("Cleaning up resources...")
-        websocket_client.disconnect()  # Ensure WebSocket is terminated
+        try:
+            websocket_client.disconnect()  # Ensure WebSocket is terminated
+        except Exception as e:
+            logger.error(f"Error while disconnecting websocket_client: {e}")
         logger.info("Bot stopped.")
 
 
